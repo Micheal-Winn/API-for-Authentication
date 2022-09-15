@@ -73,7 +73,7 @@ app.post('/users/login',authenticationToken,async (req,res)=>{
         let user = await usrCheck(username,password);
         console.log(user)
         let payload = { id: user._id };
-        const token = jwt.sign(payload, config.TOKEN_SECRET);
+        const token = jwt.sign(payload, process.env.TOKEN__SECRET);
         res.status(200).send({ token });
     }
     catch (err) {
