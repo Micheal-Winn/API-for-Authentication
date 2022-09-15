@@ -1,8 +1,25 @@
+require("dotenv").config()
+
 const express = require('express');
 const bcrypt = require("bcrypt")
+const jwt = require("jsonwebtoken")
 const app = express();
 
 app.use(express.json())
+
+
+function authenticationToken(req,res,next){
+    const authHeaders = req.headers['authorization']
+    const token =authHeaders && authHeaders.split(' ')[1]
+    if (token === null) return res.sendStatus(401)
+    jwt.verify(token,process.env.TOKEN__SECRET,(err,user)=>{
+        if(err) return res.sendStatus(403)
+        req.user = user;
+        next()
+    })
+
+}
+
 
 const users = [];
 app.get("/users",(req,res)=>{
@@ -19,29 +36,52 @@ app.post('/users',async (req,res)=>{
             password : hashedPassword
         }
         users.push(user)
-        res.status(201).send()
+        let payload = {id : user._id};
+        const token = jwt.sign(payload,process.env.TOKEN__SECRET);
+        res.status(201).send({token})
     }catch{
         res.status(400).send()
     }
 
 })
 
-app.post('/users/login',async (req,res)=>{
-    const user = users.find(user=> user.name = req.body.name)
-    if(user === null)
+const usrCheck = async(username,password) =>{
+    // const userFilter = users.filter(user=>user.name === username);
+
+    const user = await users.filter(user=>user.name === username);
+    if(user)
     {
-       return res.status(404).send("Cannot find user")
-    }
-    try{
-        if(await bcrypt.compare(req.body.password,user.password))
+        //console.log('Username ',userName, " Password ",user.password);
+        const validPass = await bcrypt.compare(password, user.password);
+        if(validPass)
         {
-            res.send("Success")
-        }else{
-            res.send("Not Allowed")
+            return user;
         }
-    }catch{
-        res.status(404).send()
+        else
+        {
+            throw Error("Invalid user or password");
+        }
     }
+    throw Error("Invalid user or password");;
+}
+
+app.post('/users/login',authenticationToken,async (req,res)=>{
+    let username = req.body['name'];
+    let password = req.body['password'];
+    try
+    {
+        let user = await usrCheck(username,password);
+        console.log(user)
+        let payload = { id: user._id };
+        const token = jwt.sign(payload, config.TOKEN_SECRET);
+        res.status(200).send({ token });
+    }
+    catch (err) {
+        console.log(err)
+        res.status(404).send({message:"Invalid user"});
+    }
+
 })
+
 
 app.listen(3000)
